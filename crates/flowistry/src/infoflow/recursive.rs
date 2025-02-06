@@ -89,8 +89,10 @@ impl<'tcx> FlowAnalysis<'_, 'tcx> {
         }
     });
 
-    if safe_to_continue {
+    if !safe_to_continue {
       debug!("  Func header is marked unsafe");
+      // This is probably not what is intended since it's just checking if the function is unsafe,
+      // rather than if it contains any unsafe block.
       return false;
     }
     let parent_arg_places = utils::arg_places(parent_args);
