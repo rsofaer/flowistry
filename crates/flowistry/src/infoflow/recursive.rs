@@ -79,14 +79,20 @@ impl<'tcx> FlowAnalysis<'_, 'tcx> {
         return false;
       }
     };
+    tcx.check_unsafety(def_id.expect_local());
+    let hir_id = tcx.local_def_id_to_hir_id(def_id.expect_local());
+    let safe_to_continue = tcx.hir().fn_sig_by_hir_id(hir_id).map_or(true, |fn_sig| {
+        if fn_sig.header.safety == rustc_hir::Safety::Unsafe {
+            false
+        } else {
+            true
+        }
+    });
 
-    // TODO(wcrichto, 2024-12-02): mir_unsafety_check_result got removed, need to find a replacement
-    // let unsafety = tcx.mir_unsafety_check_result(def_id.expect_local());
-    // if !unsafety.used_unsafe_blocks.is_empty() {
-    //   debug!("  Func contains unsafe blocks");
-    //   return false;
-    // }
-
+    if safe_to_continue {
+      debug!("  Func header is marked unsafe");
+      return false;
+    }
     let parent_arg_places = utils::arg_places(parent_args);
     let any_closure_inputs = parent_arg_places.iter().any(|(_, place)| {
       let ty = place.ty(self.body.local_decls(), tcx).ty;

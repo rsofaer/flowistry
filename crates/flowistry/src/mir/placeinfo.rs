@@ -1,6 +1,6 @@
 //! Utilities for analyzing places: children, aliases, etc.
 
-use std::{ops::ControlFlow, rc::Rc};
+use std::rc::Rc;
 
 use indexical::ToIndex;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
@@ -166,7 +166,7 @@ impl<'a, 'tcx> PlaceInfo<'a, 'tcx> {
   fn collect_loans(&self, ty: Ty<'tcx>, mutability: Mutability) -> PlaceSet<'tcx> {
     let mut collector = LoanCollector {
       aliases: &self.aliases,
-      unknown_region: Region::new_var(self.tcx, UNKNOWN_REGION),
+      unknown_region: Region::new_var(self.tcx, RegionVid::from(UNKNOWN_REGION)),
       target_mutability: mutability,
       stack: vec![],
       loans: PlaceSet::default(),
@@ -224,7 +224,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LoanCollector<'_, 'tcx> {
         self.stack.push(*mutability);
         ty.super_visit_with(self);
         self.stack.pop();
-        return ControlFlow::Break(());
+        return ();
       }
       _ if ty.is_box() || ty.is_unsafe_ptr() => {
         self.visit_region(self.unknown_region);
@@ -233,7 +233,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LoanCollector<'_, 'tcx> {
     };
 
     ty.super_visit_with(self);
-    ControlFlow::Continue(())
+    ()
   }
 
   fn visit_region(&mut self, region: Region<'tcx>) -> Self::Result {
@@ -243,7 +243,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LoanCollector<'_, 'tcx> {
       // TODO: do we need to handle bound regions?
       // e.g. shows up with closures, for<'a> ...
       RegionKind::ReErased | RegionKind::ReBound(..) => {
-        return ControlFlow::Continue(());
+        return ();
       }
       _ => unreachable!("{region:?}"),
     };
@@ -269,7 +269,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LoanCollector<'_, 'tcx> {
         }))
     }
 
-    ControlFlow::Continue(())
+    ()
   }
 }
 

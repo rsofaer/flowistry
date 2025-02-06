@@ -3,7 +3,7 @@
 use std::{hash::Hash, time::Instant};
 
 use log::{debug, info};
-use rustc_borrowck::consumers::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, PoloniusRegionVid};
 use rustc_data_structures::{
   fx::{FxHashMap as HashMap, FxHashSet as HashSet},
   graph::{iterate::reverse_post_order, scc::Sccs, vec_graph::VecGraph},
@@ -90,7 +90,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
     body_with_facts: &'a BodyWithBorrowckFacts<'tcx>,
-    selector: impl Fn(RegionVid, RegionVid, BorrowckLocationIndex) -> bool,
+    selector: impl Fn(PoloniusRegionVid, PoloniusRegionVid, BorrowckLocationIndex) -> bool,
   ) -> Self {
     let loans = Self::compute_loans(tcx, def_id, body_with_facts, selector);
     Aliases {
@@ -104,7 +104,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
     body_with_facts: &'a BodyWithBorrowckFacts<'tcx>,
-    constraint_selector: impl Fn(RegionVid, RegionVid, BorrowckLocationIndex) -> bool,
+    constraint_selector: impl Fn(PoloniusRegionVid, PoloniusRegionVid, BorrowckLocationIndex) -> bool,
   ) -> LoanMap<'tcx> {
     let start = Instant::now();
     let body = &body_with_facts.body;
@@ -131,7 +131,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       .chain(subset_base.iter().flat_map(|(r1, r2, _)| [*r1, *r2]))
       .filter(|r| *r != UNKNOWN_REGION)
       .max()
-      .unwrap_or(static_region);
+      .unwrap_or(static_region.into());
     let num_regions = max_region.as_usize() + 1;
     let all_regions = (0 .. num_regions).map(RegionVid::from_usize);
 
@@ -150,7 +150,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
 
     // subset('static, 'a).
     for a in all_regions.clone() {
-      subset.insert(static_region, a);
+      subset.insert(static_region.into(), a.into());
     }
 
     if is_extension_active(|mode| mode.pointer_mode == PointerMode::Conservative) {
@@ -212,7 +212,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       for (region, places) in
         Place::from_local(arg, tcx).interior_pointers(tcx, body, def_id)
       {
-        let region_contains = contains.entry(region).or_default();
+        let region_contains = contains.entry(region.into()).or_default();
         for (place, mutability) in places {
           // WARNING / TODO: this is a huge hack (that is conjoined w/ all_args).
           // Need a way to limit the number of possible pointers for functions with
@@ -226,7 +226,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
     }
 
     // For all places p : *T or p : Box<T>: contains('UNK, *p, mut).
-    let unk_contains = contains.entry(UNKNOWN_REGION).or_default();
+    let unk_contains = contains.entry(UNKNOWN_REGION.into()).or_default();
     for (region, places) in &all_pointers {
       if *region == UNKNOWN_REGION {
         for (place, _) in places {
@@ -257,10 +257,10 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       subset_sccs.num_sccs(),
     );
     for r in all_regions.clone() {
-      let scc = subset_sccs.scc(r);
+      let scc = subset_sccs.scc(r.into());
       scc_to_regions[scc].insert(r);
     }
-    let scc_order = reverse_post_order(&subset_sccs, subset_sccs.scc(static_region));
+    let scc_order = reverse_post_order(&subset_sccs, subset_sccs.scc(static_region.into()));
     elapsed("relation construction", start);
 
     // Subset implies containment: l ∈ 'a ∧ 'a ⊆ 'b ⇒ l ∈ 'b
@@ -298,7 +298,8 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
         let mut changed = false;
         let scc = &scc_to_regions[scc_idx];
         for a in scc.iter() {
-          for b in subset.iter(a) {
+          for b_pol in subset.iter(a.into()) {
+            let b = RegionVid::from(b_pol);
             if a == b {
               continue;
             }
@@ -391,7 +392,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       ),
       TyKind::RawPtr(ty, _) => (UNKNOWN_REGION, *ty),
       TyKind::Ref(Region(Interned(RegionKind::ReVar(region), _)), ty, _) => {
-        (*region, *ty)
+        (PoloniusRegionVid::from(*region), *ty)
       }
       _ => return aliases,
     };
@@ -401,7 +402,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
     //   else add: p
     let region_loans = self
       .loans
-      .get(&region)
+      .get(&region.into())
       .map(|loans| loans.iter())
       .into_iter()
       .flatten();
@@ -426,8 +427,8 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
 fn generate_conservative_constraints<'tcx>(
   tcx: TyCtxt<'tcx>,
   body: &Body<'tcx>,
-  region_to_pointers: &HashMap<RegionVid, Vec<(Place<'tcx>, Mutability)>>,
-) -> Vec<(RegionVid, RegionVid)> {
+  region_to_pointers: &HashMap<PoloniusRegionVid, Vec<(Place<'tcx>, Mutability)>>,
+) -> Vec<(PoloniusRegionVid, PoloniusRegionVid)> {
   let get_ty = |p| tcx.mk_place_deref(p).ty(body.local_decls(), tcx).ty;
   let same_ty = |p1, p2| get_ty(p1) == get_ty(p2);
 

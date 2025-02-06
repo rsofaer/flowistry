@@ -1,5 +1,6 @@
 //! A potpourri of utilities for working with the MIR, primarily exposed as extension traits.
 
+use rustc_borrowck::consumers::PoloniusRegionVid;
 use rustc_data_structures::fx::FxHashSet as HashSet;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
@@ -80,13 +81,13 @@ impl<'a, 'tcx> AsyncHack<'a, 'tcx> {
     }
   }
 
-  pub fn ignore_regions(&self) -> HashSet<RegionVid> {
+  pub fn ignore_regions(&self) -> HashSet<PoloniusRegionVid> {
     match self.context_ty {
       Some(context_ty) => context_ty
         .walk()
         .filter_map(|part| match part.unpack() {
           GenericArgKind::Lifetime(r) => match r.kind() {
-            RegionKind::ReVar(rv) => Some(rv),
+            RegionKind::ReVar(rv) => Some(PoloniusRegionVid::from(rv)),
             _ => None,
           },
           _ => None,

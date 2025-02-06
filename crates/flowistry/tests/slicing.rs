@@ -24,10 +24,15 @@ fn slice(dir: &str, direction: Direction) {
             .collect::<Vec<_>>()
         })
         .collect();
+        println!("\n\n");
+        println!("Target: {:?}", target);
+        println!("Places: {:?}", places);
+        println!("Targets: {:?}", targets);
       log::debug!("targets={targets:#?}");
 
       let deps =
         infoflow::compute_dependency_spans(&results, targets, direction, &spanner);
+        println!("deps: {:?}", deps);
 
       Span::merge_overlaps(deps.into_iter().flatten().collect())
     });
