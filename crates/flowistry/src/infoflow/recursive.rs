@@ -79,7 +79,7 @@ impl<'tcx> FlowAnalysis<'_, 'tcx> {
         return false;
       }
     };
-    tcx.check_unsafety(def_id.expect_local());
+    let _ = tcx.check_unsafety(def_id.expect_local());
     let hir_id = tcx.local_def_id_to_hir_id(def_id.expect_local());
     let safe_to_continue = tcx.hir().fn_sig_by_hir_id(hir_id).map_or(true, |fn_sig| {
         if fn_sig.header.safety == rustc_hir::Safety::Unsafe {

@@ -5,7 +5,7 @@ use rustc_data_structures::fx::FxHashSet as HashSet;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
   mir::*,
-  ty::{GenericArgKind, RegionKind, RegionVid, Ty, TyCtxt},
+  ty::{GenericArgKind, RegionKind, Ty, TyCtxt},
 };
 use rustc_span::source_map::Spanned;
 use rustc_utils::{BodyExt, OperandExt, PlaceExt};

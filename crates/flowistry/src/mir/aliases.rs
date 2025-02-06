@@ -114,7 +114,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       .subset_base
       .iter()
       .cloned()
-      .map(|(r1, r2, i)| (RegionVid::from(r1), RegionVid::from(r2), i))
+      .map(|(r1, r2, i)| (r1, r2, i))
       .filter(|(r1, r2, i)| constraint_selector(*r1, *r2, *i))
       .collect::<Vec<_>>();
 
@@ -251,7 +251,7 @@ impl<'a, 'tcx> Aliases<'a, 'tcx> {
       .flat_map(|r1| subset.iter(r1).map(move |r2| (r1, r2)))
       .collect::<Vec<_>>();
     let subset_graph = VecGraph::<_, false>::new(num_regions, edge_pairs);
-    let subset_sccs = Sccs::<RegionVid, RegionSccIndex>::new(&subset_graph);
+    let subset_sccs = Sccs::<PoloniusRegionVid, RegionSccIndex>::new(&subset_graph);
     let mut scc_to_regions = IndexVec::from_elem_n(
       ChunkedBitSet::new_empty(num_regions),
       subset_sccs.num_sccs(),

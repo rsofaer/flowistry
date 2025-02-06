@@ -216,8 +216,6 @@ struct LoanCollector<'a, 'tcx> {
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for LoanCollector<'_, 'tcx> {
-  type Result = ControlFlow<()>;
-
   fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
     match ty.kind() {
       TyKind::Ref(_, _, mutability) => {
